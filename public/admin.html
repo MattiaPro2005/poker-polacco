@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Pannello Admin - Poker Polacco</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #1a252f; color: #ecf0f1; padding: 20px; }
+        h1 { color: #f1c40f; text-align: center; }
+        .room-card { background: #2c3e50; border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+        .room-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #7f8c8d; padding-bottom: 10px; margin-bottom: 15px; }
+        .room-title { font-size: 24px; font-weight: bold; color: #3498db; }
+        
+        .player-row { display: flex; justify-content: space-between; background: #34495e; padding: 10px; margin-bottom: 5px; border-radius: 5px; align-items: center;}
+        
+        button { padding: 8px 15px; border: none; border-radius: 5px; color: white; font-weight: bold; cursor: pointer; }
+        .btn-kick { background: #e67e22; }
+        .btn-kick:hover { background: #d35400; }
+        .btn-delete { background: #e74c3c; font-size: 16px; }
+        .btn-delete:hover { background: #c0392b; }
+        .btn-refresh { background: #2ecc71; padding: 10px 20px; font-size: 18px; display: block; margin: 0 auto 20px; }
+    </style>
+</head>
+<body>
+
+    <h1>⚙️ Pannello di Amministrazione</h1>
+    <button class="btn-refresh" onclick="fetchRooms()">🔄 Aggiorna Lista</button>
+
+    <div id="rooms-container"></div>
+
+    <script>
+        async function fetchRooms() {
+            const res = await fetch('/api/admin/rooms');
+            const data = await res.json();
+            const container = document.getElementById('rooms-container');
+            container.innerHTML = '';
+
+            if (Object.keys(data).length === 0) {
+                container.innerHTML = '<h3 style="text-align:center; color:#95a5a6;">Nessuna stanza attiva al momento.</h3>';
+                return;
+            }
+
+            for (const [roomName, players] of Object.entries(data)) {
+                let html = `
+                <div class="room-card">
+                    <div class="room-header">
+                        <div class="room-title">Stanza: ${roomName}</div>
+                        <button class="btn-delete" onclick="deleteRoom('${roomName}')">🗑️ Chiudi Stanza</button>
+                    </div>`;
+                
+                if (players.length === 0) html += `<p>Nessun giocatore.</p>`;
+
+                players.forEach(p => {
+                    let status = p.isEliminated ? ' <span style="color:#e74c3c;">(ELIMINATO)</span>' : ` - Carte: ${p.penalties}`;
+                    html += `
+                    <div class="player-row">
+                        <span>👤 <strong>${p.name}</strong> ${status}</span>
+                        <button class="btn-kick" onclick="kickPlayer('${roomName}', '${p.id}')">🥾 Espelli</button>
+                    </div>`;
+                });
+
+                html += `</div>`;
+                container.innerHTML += html;
+            }
+        }
+
+        async function kickPlayer(room, playerId) {
+            if(confirm("Sicuro di voler espellere questo giocatore?")) {
+                await fetch('/api/admin/kick', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ room, playerId })
+                });
+                fetchRooms();
+            }
+        }
+
+        async function deleteRoom(room) {
+            if(confirm("Sicuro di voler chiudere questa stanza? Tutti i giocatori verranno disconnessi.")) {
+                await fetch('/api/admin/delete_room', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ room })
+                });
+                fetchRooms();
+            }
+        }
+
+        fetchRooms();
+        setInterval(fetchRooms, 5000); // Aggiornamento automatico ogni 5 secondi
+    </script>
+</body>
+</html>
